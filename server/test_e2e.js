@@ -8,7 +8,7 @@ async function runTests() {
   const loginRes = await fetch(`${API_BASE}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ teacherId: 'MCA_Teacher', password: 'Kishan@104' })
+    body: JSON.stringify({ teacherId: 'Jonita_Madam', password: 'Jonita@104' })
   });
   const loginData = await loginRes.json();
   if (!loginRes.ok || !loginData.token) {
