@@ -52,7 +52,4 @@ npm run dev
 
 ---
 
-## 🔐 Faculty Credentials
-- **Faculty ID**: `MCA_Teacher`
-- **Password**: `Kishan@104`
-- **Faculty Name**: `Jonita Mam`
+
