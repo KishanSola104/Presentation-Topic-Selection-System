@@ -1,0 +1,11 @@
+{
+  "name": "presentation-topic-selection-system",
+  "version": "1.0.0",
+  "description": "College Presentation Topic Selection System",
+  "scripts": {
+    "server": "cd server && node server.js",
+    "client": "cd client && npm run dev",
+    "test:e2e": "cd server && node test_e2e.js",
+    "test:concurrency": "cd server && node test_concurrency.js"
+  }
+}
