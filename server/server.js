@@ -17,11 +17,13 @@ const app = express();
 
 const cors = require('cors');
 
+const allowedOrigins = [
+  'http://localhost:5173',
+  process.env.CLIENT_URL
+].filter(Boolean);
+
 app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'https://presentation-topic-selection-system.vercel.app',
-  ],
+  origin: allowedOrigins,
   credentials: true
 }));
 
