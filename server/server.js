@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
+
 const connectDB = require('./config/db');
 
 // Load environment variables
@@ -15,18 +16,10 @@ const app = express();
 // CORS Configuration
 // ================================
 
-const cors = require('cors');
-
 const allowedOrigins = [
   'http://localhost:5173',
   process.env.CLIENT_URL
 ].filter(Boolean);
-
-app.use(cors({
-  origin: allowedOrigins,
-  credentials: true
-}));
-
 
 app.use(
   cors({
@@ -66,7 +59,7 @@ app.get('/api/health', (req, res) => {
 // 404 Handler
 // ================================
 
-app.use((req, res, next) => {
+app.use((req, res) => {
   res.status(404).json({
     message: 'Endpoint not found.'
   });
