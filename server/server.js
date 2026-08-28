@@ -21,7 +21,6 @@ app.use(cors({
   origin: [
     'http://localhost:5173',
     'https://presentation-topic-selection-system.vercel.app',
-    'https://presentation-topic-selection-git-52bb6e-kishansola104s-projects.vercel.app'
   ],
   credentials: true
 }));
