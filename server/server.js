@@ -15,11 +15,16 @@ const app = express();
 // CORS Configuration
 // ================================
 
-const allowedOrigins = [
-  'http://localhost:5173',
-  'https://presentation-topic-selection-system-amber.vercel.app',
-  process.env.CLIENT_URL
-].filter(Boolean);
+const cors = require('cors');
+
+app.use(cors({
+  origin: [
+    'http://localhost:5173',
+    'https://presentation-topic-selection-system.vercel.app',
+    'https://presentation-topic-selection-git-52bb6e-kishansola104s-projects.vercel.app'
+  ],
+  credentials: true
+}));
 
 
 app.use(
