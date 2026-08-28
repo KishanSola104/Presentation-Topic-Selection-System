@@ -137,9 +137,21 @@ const StudentHome = () => {
         )}
       </main>
 
-      <footer className="bg-white border-t border-gray-200 py-4 text-center text-xs text-gray-500">
-        Presentation Topic Selection System • MCA Department
-      </footer>
+     <footer className="bg-white border-t border-gray-200 py-5">
+  <div className="max-w-4xl mx-auto px-4 text-center">
+    <p className="text-xs sm:text-sm text-gray-500">
+      Designed & Developed by{' '}
+      <a
+        href="https://www.linkedin.com/in/kishankumar-solanki-01691835b/"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-semibold text-indigo-600 hover:text-indigo-700 hover:underline transition-colors"
+      >
+        Kishan Solanki
+      </a>
+    </p>
+  </div>
+</footer>
     </div>
   );
 };
