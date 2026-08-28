@@ -1,19 +1,22 @@
 import axios from 'axios';
+import API_URL from './api';
 
 const axiosClient = axios.create({
-  baseURL: '/api',
+  baseURL: API_URL,
   headers: {
-    'Content-Type': 'application/json'
-  }
+    'Content-Type': 'application/json',
+  },
 });
 
 // Attach Authorization header if token exists
 axiosClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('teacherToken');
+
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
     return config;
   },
   (error) => {
@@ -30,11 +33,16 @@ axiosClient.interceptors.response.use(
       if (localStorage.getItem('teacherToken')) {
         localStorage.removeItem('teacherToken');
         localStorage.removeItem('teacherData');
-        if (window.location.pathname.startsWith('/teacher') && window.location.pathname !== '/teacher/login') {
+
+        if (
+          window.location.pathname.startsWith('/teacher') &&
+          window.location.pathname !== '/teacher/login'
+        ) {
           window.location.href = '/teacher/login';
         }
       }
     }
+
     return Promise.reject(error);
   }
 );

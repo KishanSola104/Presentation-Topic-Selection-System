@@ -3,9 +3,13 @@ const jwt = require('jsonwebtoken');
 const Teacher = require('../models/Teacher');
 
 const generateToken = (id) => {
+  if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET is not defined in environment variables.');
+  }
+
   return jwt.sign(
     { id },
-    process.env.JWT_SECRET || 'jonita_mam_presentation_secret_key_2026',
+    process.env.JWT_SECRET,
     { expiresIn: '7d' }
   );
 };
@@ -18,17 +22,30 @@ const loginTeacher = async (req, res) => {
     const { teacherId, password } = req.body;
 
     if (!teacherId || !password) {
-      return res.status(400).json({ message: 'Invalid faculty ID or password.' });
+      return res.status(400).json({
+        message: 'Invalid faculty ID or password.'
+      });
     }
 
-    const teacher = await Teacher.findOne({ teacherId: teacherId.trim() });
+    const teacher = await Teacher.findOne({
+      teacherId: teacherId.trim()
+    });
+
     if (!teacher) {
-      return res.status(401).json({ message: 'Invalid faculty ID or password.' });
+      return res.status(401).json({
+        message: 'Invalid faculty ID or password.'
+      });
     }
 
-    const isMatch = await bcrypt.compare(password, teacher.passwordHash);
+    const isMatch = await bcrypt.compare(
+      password,
+      teacher.passwordHash
+    );
+
     if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid faculty ID or password.' });
+      return res.status(401).json({
+        message: 'Invalid faculty ID or password.'
+      });
     }
 
     const token = generateToken(teacher._id);
@@ -43,7 +60,10 @@ const loginTeacher = async (req, res) => {
     });
   } catch (error) {
     console.error('Login error:', error);
-    return res.status(500).json({ message: 'Something went wrong. Please try again.' });
+
+    return res.status(500).json({
+      message: 'Something went wrong. Please try again.'
+    });
   }
 };
 
@@ -52,10 +72,15 @@ const loginTeacher = async (req, res) => {
 // @access  Private (Teacher)
 const getMe = async (req, res) => {
   try {
-    const teacher = await Teacher.findById(req.teacher._id).select('-passwordHash');
+    const teacher = await Teacher.findById(req.teacher._id)
+      .select('-passwordHash');
+
     if (!teacher) {
-      return res.status(404).json({ message: 'Faculty not found.' });
+      return res.status(404).json({
+        message: 'Faculty not found.'
+      });
     }
+
     return res.json({
       teacher: {
         id: teacher._id,
@@ -65,7 +90,10 @@ const getMe = async (req, res) => {
     });
   } catch (error) {
     console.error('getMe error:', error);
-    return res.status(500).json({ message: 'Something went wrong. Please try again.' });
+
+    return res.status(500).json({
+      message: 'Something went wrong. Please try again.'
+    });
   }
 };
 
