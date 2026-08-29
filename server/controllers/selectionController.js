@@ -76,22 +76,69 @@ const getStudentPresentationDetails = async (req, res) => {
   }
 };
 
-// @desc    Select a topic (FCFS Atomic Operation)
+// @desc    Select a topic (FCFS Atomic Operation with Solo/Duo/Trio group support)
 // @route   POST /api/presentations/:id/select-topic
 // @access  Public (Students)
 const selectTopic = async (req, res) => {
   try {
-    const { studentName, studentId, topicId } = req.body;
+    const { groupType = 'solo', students, studentName, studentId, topicId } = req.body;
     const presentationId = req.params.id;
 
-    if (!studentName || !studentId || !topicId) {
-      return res.status(400).json({ message: 'Student Name, Student ID, and Topic selection are required.' });
+    if (!topicId) {
+      return res.status(400).json({ message: 'Topic selection is required.' });
     }
 
-    const trimmedStudentName = studentName.trim();
-    const trimmedStudentId = studentId.trim();
+    // 1. Normalize and validate student list
+    let normalizedStudents = [];
+    if (Array.isArray(students) && students.length > 0) {
+      normalizedStudents = students.map(s => ({
+        name: (s.name || '').trim(),
+        studentId: (s.studentId || '').trim()
+      }));
+    } else if (studentName && studentId) {
+      normalizedStudents = [{
+        name: studentName.trim(),
+        studentId: studentId.trim()
+      }];
+    }
 
-    // 1. Check Presentation exists and is published
+    if (normalizedStudents.length === 0) {
+      return res.status(400).json({ message: 'Student Name and Student ID / Roll Number are required.' });
+    }
+
+    // Validate expected count based on groupType
+    const expectedCount = groupType === 'trio' ? 3 : groupType === 'duo' ? 2 : 1;
+    if (normalizedStudents.length !== expectedCount) {
+      return res.status(400).json({
+        message: `Please provide details for ${expectedCount} student${expectedCount > 1 ? 's' : ''} for ${groupType} presentation.`
+      });
+    }
+
+    // Check that all student fields are non-empty
+    for (let i = 0; i < normalizedStudents.length; i++) {
+      const s = normalizedStudents[i];
+      if (!s.name || !s.studentId) {
+        return res.status(400).json({
+          message: `Please fill in both Name and Roll Number for Student ${i + 1}.`
+        });
+      }
+    }
+
+    // 2. Intra-group uniqueness check: No two students in the same group can have the same roll number
+    const seenRollNos = new Set();
+    for (const s of normalizedStudents) {
+      const lowerId = s.studentId.toLowerCase();
+      if (seenRollNos.has(lowerId)) {
+        return res.status(400).json({
+          message: `Duplicate Roll Number "${s.studentId}" in group. Each member must have a unique Roll Number.`
+        });
+      }
+      seenRollNos.add(lowerId);
+    }
+
+    const incomingStudentIds = normalizedStudents.map(s => s.studentId);
+
+    // 3. Check Presentation exists and is published
     const presentation = await Presentation.findById(presentationId);
     if (!presentation) {
       return res.status(404).json({ message: 'Presentation not found.' });
@@ -105,17 +152,31 @@ const selectTopic = async (req, res) => {
       return res.status(400).json({ message: 'This presentation is currently locked. Topic selection is closed.' });
     }
 
-    // 2. Enforce Duplicate Check: Student ID can select only ONE topic per presentation
+    // 4. Inter-presentation uniqueness check:
+    // If any student in this group is already registered for this presentation, reject.
     const existingStudentSelection = await Selection.findOne({
       presentationId,
-      studentId: trimmedStudentId
+      $or: [
+        { studentIds: { $in: incomingStudentIds } },
+        { studentId: { $in: incomingStudentIds } },
+        { 'students.studentId': { $in: incomingStudentIds } }
+      ]
     });
 
     if (existingStudentSelection) {
-      return res.status(400).json({ message: 'You have already selected a topic for this presentation.' });
+      let duplicateId = incomingStudentIds.find(id => {
+        if (existingStudentSelection.studentIds && existingStudentSelection.studentIds.includes(id)) return true;
+        if (existingStudentSelection.studentId === id) return true;
+        if (existingStudentSelection.students && existingStudentSelection.students.some(s => s.studentId === id)) return true;
+        return false;
+      }) || incomingStudentIds[0];
+
+      return res.status(400).json({
+        message: `Student with Roll Number "${duplicateId}" is already registered for this presentation.`
+      });
     }
 
-    // 3. FCFS Atomic Reservation on MongoDB
+    // 5. FCFS Atomic Reservation on MongoDB
     // Atomically find topic where status is 'available' and flip to 'selected'
     const updatedTopic = await Topic.findOneAndUpdate(
       {
@@ -137,13 +198,19 @@ const selectTopic = async (req, res) => {
       });
     }
 
-    // 4. Create Selection Document
+    // 6. Create Selection Document
     try {
+      const primaryStudentName = normalizedStudents.map(s => s.name).join(', ');
+      const primaryStudentId = normalizedStudents.map(s => s.studentId).join(', ');
+
       const selection = await Selection.create({
         presentationId: presentation._id,
         topicId: updatedTopic._id,
-        studentName: trimmedStudentName,
-        studentId: trimmedStudentId,
+        groupType,
+        students: normalizedStudents,
+        studentIds: incomingStudentIds,
+        studentName: primaryStudentName,
+        studentId: primaryStudentId,
         selectedAt: new Date()
       });
 
@@ -151,6 +218,8 @@ const selectTopic = async (req, res) => {
         message: 'Topic Selected Successfully!',
         selection: {
           id: selection._id,
+          groupType: selection.groupType,
+          students: selection.students,
           studentName: selection.studentName,
           studentId: selection.studentId,
           topicTitle: updatedTopic.title,
@@ -167,7 +236,7 @@ const selectTopic = async (req, res) => {
 
       if (createError.code === 11000) {
         return res.status(400).json({
-          message: 'You have already selected a topic for this presentation.'
+          message: 'One or more students in this group have already selected a topic for this presentation.'
         });
       }
       throw createError;
@@ -198,6 +267,8 @@ const getPresentationSelections = async (req, res) => {
 
     const formattedSelections = selections.map(s => ({
       _id: s._id,
+      groupType: s.groupType || 'solo',
+      students: s.students && s.students.length > 0 ? s.students : [{ name: s.studentName, studentId: s.studentId }],
       studentName: s.studentName,
       studentId: s.studentId,
       topicId: s.topicId ? s.topicId._id : null,

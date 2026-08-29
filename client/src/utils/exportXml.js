@@ -10,6 +10,8 @@ export const exportResultsToXml = (presentation, selections) => {
   };
 
   const headers = [
+    'Format',
+    'Student(s) & Roll No',
     'Student Name',
     'Student ID',
     'Subject Code',
@@ -26,12 +28,28 @@ export const exportResultsToXml = (presentation, selections) => {
   `;
 
   selections.forEach(item => {
+    const studentList = item.students && item.students.length > 0
+      ? item.students
+      : [{ name: item.studentName, studentId: item.studentId }];
+    
+    const formattedStudents = studentList
+      .map((s, sIdx) => studentList.length > 1 ? `${sIdx + 1}. ${s.name} (${s.studentId})` : `${s.name} (${s.studentId})`)
+      .join('; ');
+
+    const groupTypeLabel = item.groupType === 'trio' || studentList.length === 3
+      ? 'Group of 3'
+      : item.groupType === 'duo' || studentList.length === 2
+      ? 'Duo'
+      : 'Solo';
+
     const formattedTime = item.selectedAt
       ? new Date(item.selectedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
       : '';
 
     rowsXml += `
     <Row>
+      <Cell><Data ss:Type="String">${escapeXml(groupTypeLabel)}</Data></Cell>
+      <Cell><Data ss:Type="String">${escapeXml(formattedStudents)}</Data></Cell>
       <Cell><Data ss:Type="String">${escapeXml(item.studentName)}</Data></Cell>
       <Cell><Data ss:Type="String">${escapeXml(item.studentId)}</Data></Cell>
       <Cell><Data ss:Type="String">${escapeXml(presentation.subjectCode || '')}</Data></Cell>
@@ -66,6 +84,8 @@ export const exportResultsToXml = (presentation, selections) => {
  </Styles>
  <Worksheet ss:Name="Presentation Results">
   <Table>
+   <Column ss:Width="80"/>
+   <Column ss:Width="200"/>
    <Column ss:Width="140"/>
    <Column ss:Width="100"/>
    <Column ss:Width="100"/>

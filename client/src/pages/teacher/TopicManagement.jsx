@@ -4,6 +4,7 @@ import axiosClient from '../../api/axiosClient';
 import TeacherSidebar from '../../components/TeacherSidebar';
 import StatusBadge from '../../components/StatusBadge';
 import ConfirmModal from '../../components/ConfirmModal';
+import BulkImportModal from '../../components/BulkImportModal';
 import { 
   Save, 
   Send, 
@@ -18,7 +19,9 @@ import {
   Calendar, 
   BookOpen, 
   Hash, 
-  Code 
+  Code,
+  UploadCloud,
+  FileSpreadsheet
 } from 'lucide-react';
 
 const TopicManagement = () => {
@@ -32,6 +35,9 @@ const TopicManagement = () => {
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+
+  // Bulk import modal state
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
 
   // Editable presentation details
   const [subjectCode, setSubjectCode] = useState('');
@@ -114,6 +120,51 @@ const TopicManagement = () => {
       const reindexed = filtered.map((t, idx) => ({ ...t, topicNumber: idx + 1 }));
       setTopics(reindexed);
       setDeleteTopicTarget(null);
+    }
+  };
+
+  const handleApplyBulkTopics = (titles, mode) => {
+    const maxAllowed = presentation?.numberOfTopics || 100;
+    setError('');
+    
+    if (mode === 'replace') {
+      const updated = [];
+      for (let i = 0; i < titles.length; i++) {
+        const existing = topics[i];
+        updated.push({
+          _id: existing?._id,
+          topicNumber: i + 1,
+          title: titles[i],
+          status: existing?.status || 'available'
+        });
+      }
+      setTopics(updated);
+      setSuccessMsg(`Successfully imported ${titles.length} topic${titles.length > 1 ? 's' : ''}! Click "Save as Draft" or "Publish Presentation" to save changes.`);
+    } else {
+      // Append mode
+      let current = [...topics];
+      let titleIndex = 0;
+      
+      // First fill empty existing topic slots
+      for (let i = 0; i < current.length && titleIndex < titles.length; i++) {
+        if (!current[i].title || current[i].title.trim() === '') {
+          current[i].title = titles[titleIndex];
+          titleIndex++;
+        }
+      }
+      
+      // For remaining titles, append new topics as long as <= maxAllowed
+      while (titleIndex < titles.length && current.length < maxAllowed) {
+        current.push({
+          topicNumber: current.length + 1,
+          title: titles[titleIndex],
+          status: 'available'
+        });
+        titleIndex++;
+      }
+      
+      setTopics(current);
+      setSuccessMsg(`Successfully imported topics! Click "Save as Draft" or "Publish Presentation" to save changes.`);
     }
   };
 
@@ -260,7 +311,18 @@ const TopicManagement = () => {
             </div>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsBulkModalOpen(true)}
+              disabled={isLocked}
+              className="inline-flex items-center px-3.5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm disabled:opacity-50 transition-colors"
+              title="Bulk Add or Import Topics (CSV / XML)"
+            >
+              <UploadCloud className="w-3.5 h-3.5 mr-1.5" />
+              Bulk Add / Import Topics
+            </button>
+
             {presentation.status !== 'draft' && (
               <Link
                 to={`/teacher/presentation/${presentation._id}/results`}
@@ -384,15 +446,26 @@ const TopicManagement = () => {
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={handleAddTopic}
-              disabled={isLocked}
-              className="inline-flex items-center px-3 py-1.5 bg-gray-50 hover:bg-gray-100 text-gray-700 text-xs font-semibold rounded-lg border border-gray-300 disabled:opacity-50 transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5 mr-1" />
-              Add Topic
-            </button>
+            <div className="flex items-center space-x-2">
+              <button
+                type="button"
+                onClick={() => setIsBulkModalOpen(true)}
+                disabled={isLocked}
+                className="inline-flex items-center px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-lg border border-indigo-200 disabled:opacity-50 transition-colors shadow-sm"
+              >
+                <UploadCloud className="w-3.5 h-3.5 mr-1" />
+                Bulk Add / Import
+              </button>
+              <button
+                type="button"
+                onClick={handleAddTopic}
+                disabled={isLocked}
+                className="inline-flex items-center px-3 py-1.5 bg-gray-50 hover:bg-gray-100 text-gray-700 text-xs font-semibold rounded-lg border border-gray-300 disabled:opacity-50 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5 mr-1" />
+                Add Topic
+              </button>
+            </div>
           </div>
 
           <div className="space-y-3">
@@ -493,6 +566,15 @@ const TopicManagement = () => {
           loading={isDeletingTopic}
           onConfirm={handleConfirmDeleteTopic}
           onCancel={() => setDeleteTopicTarget(null)}
+        />
+
+        {/* Bulk Add / Import Topics Modal */}
+        <BulkImportModal
+          isOpen={isBulkModalOpen}
+          onClose={() => setIsBulkModalOpen(false)}
+          onApply={handleApplyBulkTopics}
+          maxAllowedTopics={presentation?.numberOfTopics || 100}
+          currentTopicsCount={topics.length}
         />
       </div>
     </TeacherSidebar>

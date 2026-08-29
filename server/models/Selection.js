@@ -1,5 +1,18 @@
 const mongoose = require('mongoose');
 
+const studentItemSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  studentId: {
+    type: String,
+    required: true,
+    trim: true
+  }
+}, { _id: false });
+
 const selectionSchema = new mongoose.Schema({
   presentationId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -12,6 +25,20 @@ const selectionSchema = new mongoose.Schema({
     ref: 'Topic',
     required: true,
     unique: true // A topic can only be selected once
+  },
+  groupType: {
+    type: String,
+    enum: ['solo', 'duo', 'trio'],
+    default: 'solo'
+  },
+  students: {
+    type: [studentItemSchema],
+    default: []
+  },
+  studentIds: {
+    type: [String],
+    index: true,
+    default: []
   },
   studentName: {
     type: String,
@@ -31,7 +58,8 @@ const selectionSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// A student cannot select more than one topic for the same presentation
-selectionSchema.index({ presentationId: 1, studentId: 1 }, { unique: true });
+// Indexes for fast duplicate check
+selectionSchema.index({ presentationId: 1, studentId: 1 });
+selectionSchema.index({ presentationId: 1, studentIds: 1 });
 
 module.exports = mongoose.model('Selection', selectionSchema);

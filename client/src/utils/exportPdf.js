@@ -28,18 +28,34 @@ export const exportResultsToPdf = (presentation, selections) => {
   doc.line(14, 49, 196, 49);
 
   // Table Data
-  const tableData = selections.map((item, index) => [
-    index + 1,
-    item.studentName,
-    item.studentId,
-    item.topicTitle,
-    item.selectedAt ? new Date(item.selectedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : 'N/A'
-  ]);
+  const tableData = selections.map((item, index) => {
+    const studentList = item.students && item.students.length > 0
+      ? item.students
+      : [{ name: item.studentName, studentId: item.studentId }];
+    
+    const formattedStudents = studentList
+      .map((s, sIdx) => studentList.length > 1 ? `${sIdx + 1}. ${s.name} (${s.studentId})` : `${s.name} (${s.studentId})`)
+      .join('\n');
+
+    const groupTypeLabel = item.groupType === 'trio' || studentList.length === 3
+      ? 'Group of 3'
+      : item.groupType === 'duo' || studentList.length === 2
+      ? 'Duo (2)'
+      : 'Solo';
+
+    return [
+      index + 1,
+      groupTypeLabel,
+      formattedStudents,
+      item.topicTitle,
+      item.selectedAt ? new Date(item.selectedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : 'N/A'
+    ];
+  });
 
   autoTable(doc, {
     startY: 55,
-    head: [['#', 'Student Name', 'Student ID', 'Selected Topic', 'Selection Time']],
-    body: tableData.length > 0 ? tableData : [['-', 'No selections yet', '-', '-', '-']],
+    head: [['#', 'Format', 'Student(s) & Roll No', 'Selected Topic', 'Selection Time']],
+    body: tableData.length > 0 ? tableData : [['-', '-', 'No selections yet', '-', '-']],
     theme: 'grid',
     headStyles: {
       fillColor: [79, 70, 229], // Primary indigo
@@ -47,7 +63,7 @@ export const exportResultsToPdf = (presentation, selections) => {
       fontStyle: 'bold'
     },
     styles: {
-      fontSize: 10,
+      fontSize: 9,
       cellPadding: 4,
       textColor: [30, 41, 59]
     },

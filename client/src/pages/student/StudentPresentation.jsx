@@ -6,6 +6,7 @@ import {
   ArrowLeft, 
   Calendar, 
   User, 
+  Users,
   Hash, 
   CheckCircle, 
   AlertCircle, 
@@ -13,7 +14,9 @@ import {
   Clock, 
   Sparkles, 
   BookOpen,
-  Check
+  Check,
+  ShieldCheck,
+  UserCheck
 } from 'lucide-react';
 
 const StudentPresentation = () => {
@@ -25,12 +28,23 @@ const StudentPresentation = () => {
   const [error, setError] = useState('');
   const [successData, setSuccessData] = useState(null);
 
-  // Form states
-  const [studentName, setStudentName] = useState('');
-  const [studentId, setStudentId] = useState('');
+  // Group mode & student form states
+  const [groupMode, setGroupMode] = useState('solo'); // 'solo' | 'duo' | 'trio'
+  const [students, setStudents] = useState([
+    { name: '', studentId: '' },
+    { name: '', studentId: '' },
+    { name: '', studentId: '' }
+  ]);
   const [selectedTopicId, setSelectedTopicId] = useState('');
 
   const pollingRef = useRef(null);
+
+  const handleStudentChange = (index, field, value) => {
+    const updated = [...students];
+    updated[index] = { ...updated[index], [field]: value };
+    setStudents(updated);
+    setError('');
+  };
 
   const fetchPresentationDetails = async (isBackgroundPoll = false) => {
     if (!isBackgroundPoll) setLoading(true);
@@ -59,7 +73,7 @@ const StudentPresentation = () => {
   useEffect(() => {
     fetchPresentationDetails();
 
-    // Set up polling interval every 4 seconds for simple real-time topic availability updates
+    // Set up polling interval every 4 seconds for real-time topic availability updates
     pollingRef.current = setInterval(() => {
       if (!successData) {
         fetchPresentationDetails(true);
@@ -75,24 +89,46 @@ const StudentPresentation = () => {
     e.preventDefault();
     setError('');
 
-    if (!studentName.trim()) {
-      setError('Student Name is required.');
-      return;
+    const count = groupMode === 'trio' ? 3 : groupMode === 'duo' ? 2 : 1;
+    const activeStudents = students.slice(0, count).map(s => ({
+      name: s.name.trim(),
+      studentId: s.studentId.trim()
+    }));
+
+    // 1. Verify all active student fields are filled
+    for (let i = 0; i < activeStudents.length; i++) {
+      if (!activeStudents[i].name) {
+        setError(`Please enter Name for Student ${i + 1}.`);
+        return;
+      }
+      if (!activeStudents[i].studentId) {
+        setError(`Please enter Roll Number / Student ID for Student ${i + 1}.`);
+        return;
+      }
     }
-    if (!studentId.trim()) {
-      setError('Student ID / Roll Number is required.');
-      return;
+
+    // 2. Intra-group uniqueness check
+    const rollSet = new Set();
+    for (let i = 0; i < activeStudents.length; i++) {
+      const lowerRoll = activeStudents[i].studentId.toLowerCase();
+      if (rollSet.has(lowerRoll)) {
+        setError(`Duplicate Roll Number in group: Student ${i + 1} has the same Roll Number "${activeStudents[i].studentId}". Each group member must have a unique Roll Number.`);
+        return;
+      }
+      rollSet.add(lowerRoll);
     }
+
+    // 3. Topic selection check
     if (!selectedTopicId) {
-      setError('Please select one presentation topic.');
+      setError('Please select one presentation topic from the list below.');
       return;
     }
 
     setSubmitting(true);
     try {
       const res = await axiosClient.post(`/presentations/${id}/select-topic`, {
-        studentName: studentName.trim(),
-        studentId: studentId.trim(),
+        groupType: groupMode,
+        students: activeStudents,
         topicId: selectedTopicId
       });
 
@@ -104,7 +140,7 @@ const StudentPresentation = () => {
       console.error('Selection failed:', err);
       const msg = err.response?.data?.message || 'Something went wrong. Please try again.';
       setError(msg);
-      // Immediately refresh topic list to update taken topics
+      // Immediately refresh topic list
       fetchPresentationDetails(true);
     } finally {
       setSubmitting(false);
@@ -145,10 +181,19 @@ const StudentPresentation = () => {
             </Link>
           </div>
         ) : successData ? (
-          /* SUCCESS SCREEN (Requirement 20) */
+          /* SUCCESS SCREEN (Requirement 20 & Group presentation support) */
           <div className="bg-white rounded-2xl border border-green-200 shadow-md p-6 sm:p-10 text-center animate-in fade-in zoom-in-95 duration-200">
             <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
               <CheckCircle className="w-10 h-10" />
+            </div>
+
+            <div className="inline-flex items-center px-3 py-1 bg-green-100 text-green-800 text-xs font-bold rounded-full uppercase tracking-wider mb-2">
+              <ShieldCheck className="w-3.5 h-3.5 mr-1" />
+              {successData.groupType === 'trio'
+                ? 'Group of Three (3 Members)'
+                : successData.groupType === 'duo'
+                ? 'Duo Presentation (2 Members)'
+                : 'Solo Presentation'}
             </div>
 
             <h2 className="text-2xl font-extrabold text-gray-900">
@@ -158,7 +203,7 @@ const StudentPresentation = () => {
               Your presentation topic has been officially confirmed on a First Come, First Served basis.
             </p>
 
-            <div className="my-8 max-w-md mx-auto bg-gray-50 rounded-xl p-5 border border-gray-200 text-left space-y-3.5">
+            <div className="my-8 max-w-lg mx-auto bg-gray-50 rounded-xl p-5 border border-gray-200 text-left space-y-4">
               <div className="flex justify-between border-b border-gray-200 pb-2.5">
                 <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
                   Subject:
@@ -168,27 +213,37 @@ const StudentPresentation = () => {
                 </span>
               </div>
 
-              <div className="flex justify-between border-b border-gray-200 pb-2.5">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Student Name:
+              {/* Students List in Group */}
+              <div className="border-b border-gray-200 pb-3">
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-2">
+                  Registered Student{successData.students?.length > 1 ? 's' : ''}:
                 </span>
-                <span className="text-sm font-bold text-gray-900">
-                  {successData.studentName}
-                </span>
+                <div className="space-y-2">
+                  {(successData.students && successData.students.length > 0
+                    ? successData.students
+                    : [{ name: successData.studentName, studentId: successData.studentId }]
+                  ).map((st, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between bg-white px-3 py-2 rounded-lg border border-gray-200 text-sm"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <span className="w-5 h-5 bg-indigo-50 text-indigo-700 rounded-full text-xs font-bold flex items-center justify-center">
+                          {idx + 1}
+                        </span>
+                        <span className="font-bold text-gray-900">{st.name}</span>
+                      </div>
+                      <span className="font-mono text-xs font-semibold text-gray-600 bg-gray-100 px-2 py-0.5 rounded">
+                        Roll No: {st.studentId}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <div className="flex justify-between border-b border-gray-200 pb-2.5">
                 <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Student ID:
-                </span>
-                <span className="text-sm font-mono font-bold text-gray-900">
-                  {successData.studentId}
-                </span>
-              </div>
-
-              <div className="flex justify-between border-b border-gray-200 pb-2.5">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Your Topic:
+                  Confirmed Topic:
                 </span>
                 <span className="text-sm font-bold text-indigo-700 text-right">
                   Topic {successData.topicNumber}: {successData.topicTitle}
@@ -208,8 +263,8 @@ const StudentPresentation = () => {
               </div>
             </div>
 
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg max-w-md mx-auto mb-6 text-xs text-amber-800 font-medium">
-              You cannot select another topic for this presentation.
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg max-w-lg mx-auto mb-6 text-xs text-amber-800 font-medium">
+              Registered students cannot select another topic for this presentation.
             </div>
 
             <Link
@@ -242,7 +297,7 @@ const StudentPresentation = () => {
             </div>
           </div>
         ) : (
-          /* SELECTION FORM (Requirements 15, 16, 17, 19) */
+          /* SELECTION FORM (Requirements 15, 16, 17, 19 + Group Support) */
           <div className="space-y-6">
             {/* Header Card */}
             <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
@@ -280,41 +335,248 @@ const StudentPresentation = () => {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Student Information Section */}
+              {/* Presentation Mode Selection (Solo, Duo, Group of 3) */}
               <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
-                <h2 className="text-base font-bold text-gray-900 border-b border-gray-100 pb-3 flex items-center">
-                  <User className="w-4 h-4 mr-2 text-indigo-600" />
-                  Student Information
-                </h2>
+                <div>
+                  <h2 className="text-base font-bold text-gray-900 flex items-center">
+                    <Users className="w-4 h-4 mr-2 text-indigo-600" />
+                    Presentation Format
+                  </h2>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Are you presenting individually or in a group? Choose your team size:
+                  </p>
+                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Student Name <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={studentName}
-                      onChange={(e) => setStudentName(e.target.value)}
-                      placeholder="e.g. Kishan Solanki"
-                      className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* Solo Option */}
+                  <label
+                    className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between ${
+                      groupMode === 'solo'
+                        ? 'border-indigo-600 bg-indigo-50/50 shadow-sm'
+                        : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <User className={`w-4 h-4 ${groupMode === 'solo' ? 'text-indigo-600' : 'text-gray-500'}`} />
+                        <span className="text-sm font-bold text-gray-900">Solo</span>
+                      </div>
+                      <input
+                        type="radio"
+                        name="groupMode"
+                        value="solo"
+                        checked={groupMode === 'solo'}
+                        onChange={() => setGroupMode('solo')}
+                        className="h-4 w-4 text-indigo-600 focus:ring-indigo-500"
+                      />
+                    </div>
+                    <span className="text-xs text-gray-500 mt-2 block">
+                      Individual (1 Student)
+                    </span>
+                  </label>
+
+                  {/* Duo Option */}
+                  <label
+                    className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between ${
+                      groupMode === 'duo'
+                        ? 'border-indigo-600 bg-indigo-50/50 shadow-sm'
+                        : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <Users className={`w-4 h-4 ${groupMode === 'duo' ? 'text-indigo-600' : 'text-gray-500'}`} />
+                        <span className="text-sm font-bold text-gray-900">Duo</span>
+                      </div>
+                      <input
+                        type="radio"
+                        name="groupMode"
+                        value="duo"
+                        checked={groupMode === 'duo'}
+                        onChange={() => setGroupMode('duo')}
+                        className="h-4 w-4 text-indigo-600 focus:ring-indigo-500"
+                      />
+                    </div>
+                    <span className="text-xs text-gray-500 mt-2 block">
+                      Pair (2 Students)
+                    </span>
+                  </label>
+
+                  {/* Group of Three Option */}
+                  <label
+                    className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between ${
+                      groupMode === 'trio'
+                        ? 'border-indigo-600 bg-indigo-50/50 shadow-sm'
+                        : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <Users className={`w-4 h-4 ${groupMode === 'trio' ? 'text-indigo-600' : 'text-gray-500'}`} />
+                        <span className="text-sm font-bold text-gray-900">Group of 3</span>
+                      </div>
+                      <input
+                        type="radio"
+                        name="groupMode"
+                        value="trio"
+                        checked={groupMode === 'trio'}
+                        onChange={() => setGroupMode('trio')}
+                        className="h-4 w-4 text-indigo-600 focus:ring-indigo-500"
+                      />
+                    </div>
+                    <span className="text-xs text-gray-500 mt-2 block">
+                      Trio (3 Students)
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Student Information Section (Dynamic based on Solo, Duo, Trio) */}
+              <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
+                <div className="border-b border-gray-100 pb-3 flex items-center justify-between">
+                  <h2 className="text-base font-bold text-gray-900 flex items-center">
+                    <UserCheck className="w-4 h-4 mr-2 text-indigo-600" />
+                    {groupMode === 'trio'
+                      ? 'Team Members Information (3 Students)'
+                      : groupMode === 'duo'
+                      ? 'Team Members Information (2 Students)'
+                      : 'Student Information (1 Student)'}
+                  </h2>
+                  <span className="text-xs text-gray-500">
+                    Roll numbers must be unique
+                  </span>
+                </div>
+
+                <div className="space-y-4">
+                  {/* Student 1 */}
+                  <div className="p-4 bg-gray-50/80 rounded-xl border border-gray-200 space-y-3">
+                    <div className="flex items-center space-x-2">
+                      <span className="w-5 h-5 bg-indigo-600 text-white rounded-full text-xs font-bold flex items-center justify-center">
+                        1
+                      </span>
+                      <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                        {groupMode === 'solo' ? 'Student Details' : 'Student 1 (Lead / Member 1)'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">
+                          Full Name <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={students[0].name}
+                          onChange={(e) => handleStudentChange(0, 'name', e.target.value)}
+                          placeholder="e.g. Kishan Solanki"
+                          className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">
+                          Roll Number / Student ID <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={students[0].studentId}
+                          onChange={(e) => handleStudentChange(0, 'studentId', e.target.value)}
+                          placeholder="e.g. 101"
+                          className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-mono"
+                        />
+                      </div>
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Student ID / Roll Number <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={studentId}
-                      onChange={(e) => setStudentId(e.target.value)}
-                      placeholder="e.g. 101"
-                      className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-mono"
-                    />
-                  </div>
+                  {/* Student 2 (for Duo and Trio) */}
+                  {(groupMode === 'duo' || groupMode === 'trio') && (
+                    <div className="p-4 bg-gray-50/80 rounded-xl border border-gray-200 space-y-3 animate-in fade-in duration-150">
+                      <div className="flex items-center space-x-2">
+                        <span className="w-5 h-5 bg-indigo-600 text-white rounded-full text-xs font-bold flex items-center justify-center">
+                          2
+                        </span>
+                        <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                          Student 2 (Member 2)
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-700 mb-1">
+                            Full Name <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={students[1].name}
+                            onChange={(e) => handleStudentChange(1, 'name', e.target.value)}
+                            placeholder="e.g. Rahul Sharma"
+                            className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-700 mb-1">
+                            Roll Number / Student ID <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={students[1].studentId}
+                            onChange={(e) => handleStudentChange(1, 'studentId', e.target.value)}
+                            placeholder="e.g. 102"
+                            className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-mono"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Student 3 (for Trio only) */}
+                  {groupMode === 'trio' && (
+                    <div className="p-4 bg-gray-50/80 rounded-xl border border-gray-200 space-y-3 animate-in fade-in duration-150">
+                      <div className="flex items-center space-x-2">
+                        <span className="w-5 h-5 bg-indigo-600 text-white rounded-full text-xs font-bold flex items-center justify-center">
+                          3
+                        </span>
+                        <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                          Student 3 (Member 3)
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-700 mb-1">
+                            Full Name <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={students[2].name}
+                            onChange={(e) => handleStudentChange(2, 'name', e.target.value)}
+                            placeholder="e.g. Priya Patel"
+                            className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-700 mb-1">
+                            Roll Number / Student ID <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={students[2].studentId}
+                            onChange={(e) => handleStudentChange(2, 'studentId', e.target.value)}
+                            placeholder="e.g. 103"
+                            className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-mono"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 

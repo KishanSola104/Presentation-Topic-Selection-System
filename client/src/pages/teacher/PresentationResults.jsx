@@ -251,49 +251,84 @@ const PresentationResults = () => {
                 <thead className="bg-gray-50 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">
                   <tr>
                     <th scope="col" className="px-6 py-3">#</th>
-                    <th scope="col" className="px-6 py-3">Student Name</th>
-                    <th scope="col" className="px-6 py-3">Student ID</th>
+                    <th scope="col" className="px-6 py-3">Format</th>
+                    <th scope="col" className="px-6 py-3">Student Name(s) &amp; Roll No(s)</th>
                     <th scope="col" className="px-6 py-3">Selected Topic</th>
                     <th scope="col" className="px-6 py-3">Selection Time</th>
                     <th scope="col" className="px-6 py-3 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {selections.map((item, index) => (
-                    <tr key={item._id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 text-xs text-gray-400 font-mono">
-                        {index + 1}
-                      </td>
-                      <td className="px-6 py-4 font-semibold text-gray-900 whitespace-nowrap">
-                        {item.studentName}
-                      </td>
-                      <td className="px-6 py-4 text-gray-700 font-mono whitespace-nowrap">
-                        {item.studentId}
-                      </td>
-                      <td className="px-6 py-4 text-gray-900 font-medium whitespace-nowrap">
-                        {item.topicTitle}
-                      </td>
-                      <td className="px-6 py-4 text-gray-500 text-xs whitespace-nowrap">
-                        {item.selectedAt
-                          ? new Date(item.selectedAt).toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                              hour12: true
-                            })
-                          : 'N/A'}
-                      </td>
-                      <td className="px-6 py-4 text-right whitespace-nowrap">
-                        <button
-                          type="button"
-                          onClick={() => setReleaseTarget(item)}
-                          className="inline-flex items-center px-2.5 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5 mr-1" />
-                          Release
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {selections.map((item, index) => {
+                    const studentList = item.students && item.students.length > 0
+                      ? item.students
+                      : [{ name: item.studentName, studentId: item.studentId }];
+                    const isGroup = studentList.length > 1;
+
+                    return (
+                      <tr key={item._id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-6 py-4 text-xs text-gray-400 font-mono">
+                          {index + 1}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {item.groupType === 'trio' || studentList.length === 3 ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-purple-100 text-purple-800">
+                              Group of 3
+                            </span>
+                          ) : item.groupType === 'duo' || studentList.length === 2 ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-blue-100 text-blue-800">
+                              Duo (2)
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">
+                              Solo
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="space-y-1.5">
+                            {studentList.map((st, sIdx) => (
+                              <div key={sIdx} className="flex items-center space-x-2">
+                                {isGroup && (
+                                  <span className="w-4 h-4 bg-gray-200 text-gray-700 rounded-full text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+                                    {sIdx + 1}
+                                  </span>
+                                )}
+                                <span className="font-semibold text-gray-900">
+                                  {st.name}
+                                </span>
+                                <span className="text-xs font-mono font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                                  {st.studentId}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-gray-900 font-medium whitespace-nowrap">
+                          {item.topicTitle}
+                        </td>
+                        <td className="px-6 py-4 text-gray-500 text-xs whitespace-nowrap">
+                          {item.selectedAt
+                            ? new Date(item.selectedAt).toLocaleTimeString([], {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                hour12: true
+                              })
+                            : 'N/A'}
+                        </td>
+                        <td className="px-6 py-4 text-right whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => setReleaseTarget(item)}
+                            className="inline-flex items-center px-2.5 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 mr-1" />
+                            Release
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
